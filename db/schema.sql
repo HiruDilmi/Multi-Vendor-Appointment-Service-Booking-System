@@ -1,11 +1,5 @@
--- Create the database
-CREATE DATABASE online_appointment_system;
-
--- Use the db
-USE online_appointment_system;
-
 -- Users (businesses, Clients, Admins)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   first_name VARCHAR(50) NOT NULL,
   last_name VARCHAR(50) NULL,
@@ -17,7 +11,7 @@ CREATE TABLE users (
 );
 
 -- Business profile
-CREATE TABLE businesses (
+CREATE TABLE IF NOT EXISTS businesses (
   business_id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL UNIQUE,
   business_name VARCHAR(150) NOT NULL,
@@ -31,7 +25,7 @@ CREATE TABLE businesses (
 );
 
 -- Services offered by businesses
-CREATE TABLE services (
+CREATE TABLE IF NOT EXISTS services (
   service_id INT AUTO_INCREMENT PRIMARY KEY,
   business_id INT NOT NULL,
   title VARCHAR(120) NOT NULL,
@@ -44,7 +38,7 @@ CREATE TABLE services (
 );
 
 -- Business Availability in the Week
-CREATE TABLE business_availability (
+CREATE TABLE IF NOT EXISTS business_availability (
   availability_id INT AUTO_INCREMENT PRIMARY KEY,
   business_id INT NOT NULL,
   day_of_week TINYINT NOT NULL, -- 0 = Sunday, 6 = Saturday
@@ -54,7 +48,7 @@ CREATE TABLE business_availability (
 );
 
 -- Appointments table
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
   app_id INT AUTO_INCREMENT PRIMARY KEY,
   customer_id INT NOT NULL,
   business_id INT NOT NULL,
@@ -71,7 +65,7 @@ CREATE TABLE appointments (
 );
 
 -- Linking services to an appointment
-CREATE TABLE appointment_services (
+CREATE TABLE IF NOT EXISTS appointment_services (
   id INT AUTO_INCREMENT PRIMARY KEY,
   app_id INT NOT NULL,
   service_id INT NOT NULL,
