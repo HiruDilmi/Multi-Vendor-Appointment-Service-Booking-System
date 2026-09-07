@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name VARCHAR(50) NOT NULL,
   last_name VARCHAR(50) NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL,
   role ENUM('customer', 'business', 'admin') DEFAULT 'customer',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -73,4 +73,14 @@ CREATE TABLE IF NOT EXISTS appointment_services (
   FOREIGN KEY (app_id) REFERENCES appointments(app_id) ON DELETE CASCADE,
   FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE RESTRICT,
   UNIQUE KEY unique_appointment_service (app_id, service_id)
+);
+
+-- refresh tokens
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
