@@ -1,16 +1,19 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'API is running' });
-});
+import 'dotenv/config';
+import app from './app.js';
+import initDb from './src/config/initDb.js';
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+
+async function startServer() {
+    try {
+        await initDb();
+        app.listen(PORT, () => {
+            console.log(`Backend running on http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error('Failed to initialize database and start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
