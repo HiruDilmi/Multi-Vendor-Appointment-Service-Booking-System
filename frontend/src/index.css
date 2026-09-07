@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Ensure Tailwind utilities always take priority over MUI defaults when needed */
+@layer utilities {
+  #root {
+    isolation: isolate;
+  }
+}
