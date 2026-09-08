@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(50) NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('customer', 'business', 'admin') DEFAULT 'customer',
+  role ENUM('customer', 'vendor', 'admin') DEFAULT 'customer',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS services (
   description TEXT,
   duration_minutes INT NOT NULL,
   price DECIMAL(10,2) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (business_id) REFERENCES businesses(business_id) ON DELETE CASCADE
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS appointment_services (
   UNIQUE KEY unique_appointment_service (app_id, service_id)
 );
 
--- refresh tokens
+-- Refresh tokens
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   token_id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
