@@ -378,3 +378,214 @@ export const getVendorAvailability = async (req, res) => {
         return res.status(500).json({ error: 'Internal server error.' });
     }
 };
+
+// Set a holiday/closure for a specific calendar date without modifying weekly open hours
+export const addHoliday = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const business = await availabilityService.findBusinessByUserId(userId);
+        if (!business) {
+            return res.status(400).json({
+                error: 'Business profile not found. Please register your business profile before managing holidays.',
+            });
+        }
+
+        const body = req.body || {};
+        let rawItems = [];
+        if (Array.isArray(body)) {
+            rawItems = body;
+        } else if (Array.isArray(body.holidays)) {
+            rawItems = body.holidays;
+        } else if (body.date) {
+            rawItems = [body];
+        } else {
+            return res.status(400).json({
+                error: 'Please provide either a holiday object with "date" or an array of holiday objects.',
+            });
+        }
+
+        if (rawItems.length === 0) {
+            return res.status(400).json({ error: 'Holiday list cannot be empty.' });
+        }
+
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        const savedClosures = [];
+
+        for (let i = 0; i < rawItems.length; i++) {
+            const item = rawItems[i];
+            const prefix = rawItems.length > 1 ? `Holiday item at index ${i}: ` : '';
+
+            if (!item || typeof item !== 'object') {
+                return res.status(400).json({ error: `${prefix}Each holiday item must be an object.` });
+            }
+
+            if (!item.date || typeof item.date !== 'string') {
+                return res.status(400).json({ error: `${prefix}Date is required in format YYYY-MM-DD.` });
+            }
+
+            const trimmedDate = item.date.trim();
+            if (!dateRegex.test(trimmedDate)) {
+                return res.status(400).json({ error: `${prefix}Invalid date format '${item.date}'. Expected YYYY-MM-DD.` });
+            }
+
+            const parsedDate = new Date(trimmedDate + 'T00:00:00Z');
+            if (isNaN(parsedDate.getTime())) {
+                return res.status(400).json({ error: `${prefix}Invalid calendar date provided '${item.date}'.` });
+            }
+
+            // Handle is_open and times (for custom operating hours)
+            let isOpen = false;
+            let normStart = null;
+            let normEnd = null;
+
+            if (item.start_time || item.end_time) {
+                // If times are provided, validate both start_time and end_time
+                if (!item.start_time || !item.end_time) {
+                    return res.status(400).json({
+                        error: `${prefix}Both start_time and end_time (e.g. '09:00' to '13:00') are required when specifying operating hours.`,
+                    });
+                }
+
+                normStart = normalizeTime(item.start_time);
+                normEnd = normalizeTime(item.end_time);
+
+                if (!normStart) {
+                    return res.status(400).json({
+                        error: `${prefix}Invalid start_time format (${item.start_time}). Use HH:MM (e.g. '09:00').`,
+                    });
+                }
+                if (!normEnd) {
+                    return res.status(400).json({
+                        error: `${prefix}Invalid end_time format (${item.end_time}). Use HH:MM (e.g. '13:00').`,
+                    });
+                }
+                if (normStart >= normEnd) {
+                    return res.status(400).json({
+                        error: `${prefix}start_time (${item.start_time}) must be earlier than end_time (${item.end_time}).`,
+                    });
+                }
+
+                isOpen = item.is_open !== undefined ? parseIsOpen(item.is_open) : true;
+            } else {
+                // No times provided -> defaults to full-day closure
+                isOpen = item.is_open !== undefined ? parseIsOpen(item.is_open) : false;
+                if (isOpen) {
+                    return res.status(400).json({
+                        error: `${prefix}start_time and end_time are required when is_open is true.`,
+                    });
+                }
+            }
+
+            const defaultReason = isOpen ? 'Custom Hours' : 'Holiday';
+            const reason = item.reason && typeof item.reason === 'string' ? item.reason.trim() : defaultReason;
+
+            const saved = await availabilityService.addBusinessClosure(
+                business.business_id,
+                trimmedDate,
+                reason,
+                isOpen,
+                normStart,
+                normEnd
+            );
+            savedClosures.push(saved);
+        }
+
+        return res.status(201).json({
+            message: 'Holiday / special hours declared successfully. Default weekly operating hours remain unchanged.',
+            business_id: business.business_id,
+            count: savedClosures.length,
+            holidays: savedClosures,
+        });
+    } catch (error) {
+        console.error('Error adding holiday/special hours:', error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Get list of declared holidays/closures for a business
+export const getHolidays = async (req, res) => {
+    try {
+        const businessIdParam = req.params.businessId || req.query.businessId || req.query.vendorId;
+        let targetBusinessId = businessIdParam ? Number(businessIdParam) : null;
+
+        // If not specified in param/query, check authenticated user's business
+        if (!targetBusinessId) {
+            let userId = req.user?.id;
+            if (!userId) {
+                const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+                if (authHeader) {
+                    try {
+                        let token = authHeader.trim();
+                        if (token.startsWith('Bearer ')) token = token.slice(7).trim();
+                        if (token.startsWith('Bearer ')) token = token.slice(7).trim();
+                        if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+                            token = token.slice(1, -1).trim();
+                        }
+                        const decoded = verifyAccessToken(token);
+                        userId = decoded?.id;
+                    } catch {
+                        // ignore token error for public view
+                    }
+                }
+            }
+
+            if (userId) {
+                const business = await availabilityService.findBusinessByUserId(userId);
+                if (business) {
+                    targetBusinessId = business.business_id;
+                }
+            }
+        }
+
+        if (!targetBusinessId) {
+            return res.status(400).json({
+                error: 'Business ID is required. Please specify :businessId in the URL, as a query param, or authenticate as a vendor.',
+            });
+        }
+
+        const closures = await availabilityService.getBusinessClosures(targetBusinessId);
+
+        return res.status(200).json({
+            business_id: targetBusinessId,
+            count: closures.length,
+            holidays: closures,
+        });
+    } catch (error) {
+        console.error('Error fetching holidays/closures:', error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Delete a holiday/closure to restore standard operating hours for that date
+export const deleteHoliday = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const closureId = Number(req.params.id);
+
+        if (!closureId || isNaN(closureId) || closureId <= 0) {
+            return res.status(400).json({ error: 'Valid positive numeric holiday ID is required.' });
+        }
+
+        const existing = await availabilityService.getClosureById(closureId);
+        if (!existing) {
+            return res.status(404).json({ error: 'Holiday / closure entry not found.' });
+        }
+
+        if (existing.vendor_user_id !== userId) {
+            return res.status(403).json({
+                error: 'Forbidden: You do not have permission to delete this holiday entry.',
+            });
+        }
+
+        await availabilityService.deleteBusinessClosure(existing.business_id, closureId);
+
+        return res.status(200).json({
+            message: 'Holiday / closure removed successfully. Default operating hours restored for this date.',
+            closure_id: closureId,
+            date: existing.closure_date,
+        });
+    } catch (error) {
+        console.error('Error deleting holiday/closure:', error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+};

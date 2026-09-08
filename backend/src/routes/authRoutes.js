@@ -2,6 +2,7 @@ import express from 'express';
 import {
     userRegister,
     login,
+    logout,
     refreshToken,
     registerBusiness,
     getMe,
@@ -17,7 +18,10 @@ router.post('/user/register', userRegister);
 // api/auth/login
 router.post('/login', login);
 
-//api/auth/refresh
+// api/auth/logout
+router.post('/logout', logout);
+
+// api/auth/refresh
 router.post('/refresh', refreshToken);
 
 // Protected Routes
@@ -26,6 +30,5 @@ router.get('/me', authenticateToken, getMe);
 
 // api/auth/business/register
 router.post('/business/register', authenticateToken, registerBusiness);
-
 
 export default router;

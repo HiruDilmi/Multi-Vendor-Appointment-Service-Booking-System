@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import pool from '../config/db.js';
 
 dotenv.config();
 
@@ -12,7 +13,6 @@ export const hashPassword = async (password) => {
 export const comparePassword = async (password, hash) => {
     return bcrypt.compare(password, hash);
 };
-
 
 // Generates the access token
 export const generateAccessToken = (payload) => {
@@ -50,4 +50,31 @@ export const generateAuthTokens = (payload) => {
     };
 };
 
+// Delete a specific refresh token from the database
+export const clearRefreshToken = async (token) => {
+    if (!token || typeof token !== 'string') return false;
+    const [result] = await pool.query('DELETE FROM refresh_tokens WHERE token = ?', [token.trim()]);
+    return result.affectedRows > 0;
+};
+
+// Clears all refresh tokens for a user
+export const clearUserRefreshTokens = async (userId) => {
+    if (!userId) return false;
+    const [result] = await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [userId]);
+    return result.affectedRows > 0;
+};
+
 export const generateToken = generateAccessToken;
+
+export default {
+    hashPassword,
+    comparePassword,
+    generateAccessToken,
+    generateRefreshToken,
+    verifyAccessToken,
+    verifyRefreshToken,
+    generateAuthTokens,
+    clearRefreshToken,
+    clearUserRefreshTokens,
+    generateToken,
+};

@@ -51,6 +51,21 @@ CREATE TABLE IF NOT EXISTS business_availability (
   FOREIGN KEY (business_id) REFERENCES businesses(business_id) ON DELETE CASCADE
 );
 
+-- Business Closures / Specific Date Holidays / custom open hours (Overrides weekly schedule without changing defaults)
+CREATE TABLE IF NOT EXISTS business_closures (
+  closure_id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id INT NOT NULL,
+  closure_date DATE NOT NULL,
+  reason VARCHAR(255) DEFAULT 'Holiday',
+  is_open BOOLEAN DEFAULT FALSE,
+  start_time TIME NULL,
+  end_time TIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(business_id) ON DELETE CASCADE,
+  UNIQUE KEY unique_business_closure_date (business_id, closure_date)
+);
+
+
 -- Appointments table
 CREATE TABLE IF NOT EXISTS appointments (
   app_id INT AUTO_INCREMENT PRIMARY KEY,
