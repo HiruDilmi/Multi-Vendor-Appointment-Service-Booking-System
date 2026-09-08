@@ -307,31 +307,74 @@ export const updateAvailability = async (req, res) => {
 };
 
 // Delete an availability entry
-export const deleteAvailability = async (req, res) => {
+// export const deleteAvailability = async (req, res) => {
+//     try {
+//         const userId = req.user?.id;
+//         const availabilityId = Number(req.params.id);
+
+//         if (!availabilityId || isNaN(availabilityId)) {
+//             return res.status(400).json({ error: 'Invalid availability ID.' });
+//         }
+
+//         const existing = await availabilityService.getAvailabilityById(availabilityId);
+//         if (!existing) {
+//             return res.status(404).json({ error: 'Availability entry not found.' });
+//         }
+
+//         if (existing.vendor_user_id !== userId) {
+//             return res.status(403).json({ error: 'Forbidden: You do not have permission to delete this availability entry.' });
+//         }
+
+//         await availabilityService.deleteAvailabilityById(availabilityId);
+
+//         return res.json({
+//             message: 'Availability entry deleted successfully.',
+//         });
+//     } catch (error) {
+//         console.error('Error deleting availability entry:', error);
+//         return res.status(500).json({ error: 'Internal server error.' });
+//     }
+// };
+
+// Controller to fetch free times during the day after existing appointments.
+export const getVendorAvailability = async (req, res) => {
     try {
-        const userId = req.user?.id;
-        const availabilityId = Number(req.params.id);
+        const { vendorId } = req.params;
+        const { date } = req.query;
 
-        if (!availabilityId || isNaN(availabilityId)) {
-            return res.status(400).json({ error: 'Invalid availability ID.' });
+        // Validate vendor
+        if (!vendorId || isNaN(Number(vendorId)) || Number(vendorId) <= 0) {
+            return res.status(400).json({ error: 'Valid positive numeric vendorId parameter is required.' });
         }
 
-        const existing = await availabilityService.getAvailabilityById(availabilityId);
-        if (!existing) {
-            return res.status(404).json({ error: 'Availability entry not found.' });
+        // Validate date (YYYY-MM-DD)
+        if (!date || typeof date !== 'string') {
+            return res.status(400).json({ error: 'Date query parameter is required (e.g. ?date=YYYY-MM-DD).' });
         }
 
-        if (existing.vendor_user_id !== userId) {
-            return res.status(403).json({ error: 'Forbidden: You do not have permission to delete this availability entry.' });
+        const trimmedDate = date.trim();
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(trimmedDate)) {
+            return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD.' });
         }
 
-        await availabilityService.deleteAvailabilityById(availabilityId);
+        const parsedDate = new Date(trimmedDate + 'T00:00:00Z');
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ error: 'Invalid calendar date provided.' });
+        }
 
-        return res.json({
-            message: 'Availability entry deleted successfully.',
-        });
+        // Call availabilityService.getAvailableSlots
+        const result = await availabilityService.getAvailableSlots(
+            Number(vendorId),
+            trimmedDate
+        );
+
+        return res.status(200).json(result);
     } catch (error) {
-        console.error('Error deleting availability entry:', error);
+        console.error('Error fetching vendor availability slots:', error);
+        if (error.statusCode === 400) {
+            return res.status(400).json({ error: error.message });
+        }
         return res.status(500).json({ error: 'Internal server error.' });
     }
 };

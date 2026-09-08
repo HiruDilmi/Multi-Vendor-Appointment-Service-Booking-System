@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './src/routes/authRoutes.js';
-import availabilityRoute from './src/routes/availabilityRoute.js';
+import availabilityRoutes from './src/routes/availabilityRoutes.js';
 import servicesRoutes from './src/routes/servicesRoutes.js';
 
 const app = express();
@@ -14,7 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 
 // Business routes
-app.use('/api/availability', availabilityRoute);
+app.use('/api/availability', availabilityRoutes);
 app.use('/api/services', servicesRoutes);
 
 // Base health check

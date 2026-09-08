@@ -1,10 +1,11 @@
 import express from 'express';
 import {
+    getVendorAvailability,
     setAvailability,
     getAvailability,
     getAvailabilityById,
     updateAvailability,
-    // deleteAvailability,
+    // deleteAvailability
 } from '../controllers/availabilityController.js';
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js';
 
@@ -22,7 +23,10 @@ router.get('/get/:businessId', getAvailability);
 // PUT /api/availability/update/:id - Update an availability entry
 router.put('/update/:id', authenticateToken, requireRole('vendor'), updateAvailability);
 
-// DELETE /api/availability/delete/:id - Delete an availability entry
-// router.delete('/availability/:id', authenticateToken, requireRole('vendor'), deleteAvailability);
+// DELETE /api/availability/delete/:id
+// router.delete('/delete/:id', authenticateToken, requireRole('vendor'), deleteAvailability);
+
+// GET /api/availability/:vendorId/slots - Public route to calculate open booking slots
+router.get('/:vendorId/slots', getVendorAvailability);
 
 export default router;
