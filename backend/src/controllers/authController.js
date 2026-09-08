@@ -21,7 +21,7 @@ export const userRegister = async (req, res) => {
         return res.status(400).json({ error: 'Password is required.' });
     }
 
-    const assignedRole = role === 'business' ? 'business' : 'customer';
+    const assignedRole = role === 'vendor' ? 'vendor' : 'customer';
     const connection = await pool.getConnection();
 
     try {
@@ -111,9 +111,9 @@ export const login = async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password.' });
         }
 
-        // Check if business profile exists if role is business
+        // Check if business profile exists if role is vendor
         let hasBusinessProfile = false;
-        if (user.role === 'business') {
+        if (user.role === 'vendor') {
             const [biz] = await pool.query(
                 'SELECT business_id FROM businesses WHERE user_id = ? LIMIT 1',
                 [user.user_id]
@@ -199,7 +199,7 @@ export const registerBusiness = async (req, res) => {
     const { business_name, bio, address, city, phone } = req.body || {};
     const userId = req.user.id;
 
-    if (req.user?.role !== 'business') {
+    if (req.user?.role !== 'vendor') {
         return res.status(403).json({ error: 'Only business accounts can register a business profile.' });
     }
 
@@ -257,7 +257,7 @@ export const getMe = async (req, res) => {
         let hasBusinessProfile = false;
         let business = null;
 
-        if (user.role === 'business') {
+        if (user.role === 'vendor') {
             const [biz] = await pool.query(
                 'SELECT business_id, business_name, bio, city, phone, address FROM businesses WHERE user_id = ? LIMIT 1',
                 [user.user_id]
