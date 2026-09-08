@@ -203,6 +203,82 @@ export const getAvailableSlots = async (vendorId, dateStr) => {
     const dayOfWeek = dateObj.getUTCDay(); // 0 for Sunday, 6 for Saturday
     const dayName = DAY_MAP_SHORT[dayOfWeek];
 
+// Check if this specific date is marked as a business closure, holiday, or custom open hours
+    const [closures] = await pool.query(
+        `SELECT 
+            closure_id, 
+            reason, 
+            is_open, 
+            start_time, 
+            end_time 
+         FROM business_closures 
+         WHERE business_id = ? AND closure_date = ? 
+         LIMIT 1`,
+        [targetBusinessId, dateStr]
+    );
+
+    if (closures.length > 0) {
+        const closure = closures[0];
+        const isOpen = Boolean(closure.is_open);
+
+        // Case A: Full-day closure/holiday
+        if (!isOpen || !closure.start_time || !closure.end_time) {
+            return {
+                vendorId: Number(vendorId) || vendorId,
+                businessName: business?.business_name || null,
+                date: dateStr,
+                dayOfWeek: dayName,
+                isClosed: true,
+                isHoliday: true,
+                reason: closure.reason || 'Holiday',
+                operatingHours: null,
+                availableSlots: [],
+            };
+        }
+
+        // Case B: Custom opening hours for this specific date
+        const openTime = closure.start_time;
+        const closeTime = closure.end_time;
+
+        // Query appointments for that vendorId and booking_date = dateStr where status != 'cancelled'
+        const [appointments] = await pool.query(
+            `SELECT app_id, start_time, end_time, status
+             FROM appointments
+             WHERE business_id = ? AND booking_date = ? AND status != 'cancelled'
+             ORDER BY start_time ASC`,
+            [targetBusinessId, dateStr]
+        );
+
+        // Calculate free times within the custom operating hours
+        const freeTimes = calculateFreeTimes({
+            openTime,
+            closeTime,
+            existingBookings: appointments.map((a) => ({
+                start_time: a.start_time,
+                end_time: a.end_time,
+            })),
+        });
+
+        return {
+            vendorId: Number(vendorId) || vendorId,
+            businessName: business?.business_name || null,
+            date: dateStr,
+            dayOfWeek: dayName,
+            isClosed: false,
+            isHoliday: false,
+            isCustomHours: true,
+            reason: closure.reason || 'Custom Open Hours',
+            operatingHours: {
+                openTime,
+                closeTime,
+            },
+            availableSlots: freeTimes.map((ft) => ({
+                startTime: ft.startTime,
+                endTime: ft.endTime,
+            })),
+        };
+    }
+
     // Query business_availability for that vendor and day_of_week
     const [availabilityRows] = await pool.query(
         `SELECT 
@@ -275,4 +351,129 @@ export const getAvailableSlots = async (vendorId, dateStr) => {
             endTime: ft.endTime,
         })),
     };
+};
+
+// Add or update a business holiday/custom open hours for a specific date
+export const addBusinessClosure = async (
+    businessId,
+    closureDate,
+    reason = 'Holiday',
+    isOpen = false,
+    startTime = null,
+    endTime = null
+) => {
+    const cleanReason = reason && typeof reason === 'string' ? reason.trim() : 'Holiday';
+    const numericIsOpen = isOpen ? 1 : 0;
+    const finalStart = numericIsOpen && startTime ? startTime : null;
+    const finalEnd = numericIsOpen && endTime ? endTime : null;
+
+    const [existing] = await pool.query(
+        'SELECT closure_id FROM business_closures WHERE business_id = ? AND closure_date = ? LIMIT 1',
+        [businessId, closureDate]
+    );
+
+    if (existing.length > 0) {
+        await pool.query(
+            `UPDATE business_closures 
+             SET reason = ?, is_open = ?, start_time = ?, end_time = ? 
+             WHERE closure_id = ?`,
+            [cleanReason, numericIsOpen, finalStart, finalEnd, existing[0].closure_id]
+        );
+        return {
+            closure_id: existing[0].closure_id,
+            business_id: businessId,
+            closure_date: closureDate,
+            reason: cleanReason,
+            is_open: Boolean(numericIsOpen),
+            start_time: finalStart,
+            end_time: finalEnd,
+            is_new: false,
+        };
+    } else {
+        const [result] = await pool.query(
+            `INSERT INTO business_closures 
+             (business_id, closure_date, reason, is_open, start_time, end_time) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [businessId, closureDate, cleanReason, numericIsOpen, finalStart, finalEnd]
+        );
+        return {
+            closure_id: result.insertId,
+            business_id: businessId,
+            closure_date: closureDate,
+            reason: cleanReason,
+            is_open: Boolean(numericIsOpen),
+            start_time: finalStart,
+            end_time: finalEnd,
+            is_new: true,
+        };
+    }
+};
+
+// Get list of closures/holidays for a business
+export const getBusinessClosures = async (businessId, startDate = null) => {
+    let sql = `
+        SELECT 
+            bc.closure_id,
+            bc.business_id,
+            DATE_FORMAT(bc.closure_date, '%Y-%m-%d') AS closure_date,
+            bc.reason,
+            bc.is_open,
+            bc.start_time,
+            bc.end_time,
+            bc.created_at,
+            b.business_name
+        FROM business_closures bc
+        JOIN businesses b ON bc.business_id = b.business_id
+        WHERE bc.business_id = ?
+    `;
+    const params = [businessId];
+
+    if (startDate) {
+        sql += ' AND bc.closure_date >= ?';
+        params.push(startDate);
+    }
+
+    sql += ' ORDER BY bc.closure_date ASC';
+
+    const [rows] = await pool.query(sql, params);
+    return rows.map((row) => ({
+        ...row,
+        is_open: Boolean(row.is_open),
+    }));
+};
+
+// Get a single closure by ID
+export const getClosureById = async (closureId) => {
+    const [rows] = await pool.query(
+        `SELECT 
+            bc.closure_id,
+            bc.business_id,
+            DATE_FORMAT(bc.closure_date, '%Y-%m-%d') AS closure_date,
+            bc.reason,
+            bc.is_open,
+            bc.start_time,
+            bc.end_time,
+            bc.created_at,
+            b.user_id AS vendor_user_id,
+            b.business_name
+        FROM business_closures bc
+        JOIN businesses b ON bc.business_id = b.business_id
+        WHERE bc.closure_id = ?
+        LIMIT 1`,
+        [closureId]
+    );
+    if (rows.length === 0) return null;
+    return {
+        ...rows[0],
+        is_open: Boolean(rows[0].is_open),
+    };
+};
+
+// Delete a business closure by ID
+export const deleteBusinessClosure = async (businessId, closureId) => {
+    const [result] = await pool.query(
+        'DELETE FROM business_closures WHERE closure_id = ? AND business_id = ?',
+        [closureId, businessId]
+    );
+    return result.affectedRows > 0;
 };
