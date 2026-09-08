@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
- 
+import { calculateFreeTimes, calculateOpenSlots } from '../utils/slotCalculator.js';
+
 // Find business profile by user ID
 export const findBusinessByUserId = async (userId) => {
     const [rows] = await pool.query(
@@ -175,11 +176,103 @@ export const updateAvailabilityById = async (availabilityId, updates) => {
 //     return result.affectedRows > 0;
 // };
 
-// // Delete all availability records for a business
-// export const clearBusinessAvailability = async (businessId) => {
-//     const [result] = await pool.query(
-//         'DELETE FROM business_availability WHERE business_id = ?',
-//         [businessId]
-//     );
-//     return result.affectedRows;
-// };
+// Day mapping helpers for day of week conversion
+const DAY_MAP_SHORT = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+
+// Calculates free times for a vendor on a specific date after existing appointments.
+export const getAvailableSlots = async (vendorId, dateStr) => {
+    // Resolve business
+    const [businesses] = await pool.query(
+        'SELECT business_id, user_id, business_name FROM businesses WHERE business_id = ? OR user_id = ? LIMIT 1',
+        [vendorId, vendorId]
+    );
+
+    const business = businesses[0];
+    const targetBusinessId = business ? business.business_id : Number(vendorId);
+
+    // etermine the day of week (0 for Sunday, 6 for Saturday) from dateStr (e.g. '2026-09-15')
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(year, month - 1, day));
+    if (isNaN(dateObj.getTime())) {
+        const error = new Error('Invalid date format. Expected YYYY-MM-DD.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const dayOfWeek = dateObj.getUTCDay(); // 0 for Sunday, 6 for Saturday
+    const dayName = DAY_MAP_SHORT[dayOfWeek];
+
+    // Query business_availability for that vendor and day_of_week
+    const [availabilityRows] = await pool.query(
+        `SELECT 
+            availability_id, 
+            business_id, 
+            day_of_week, 
+            is_open, 
+            start_time, 
+            end_time
+         FROM business_availability
+         WHERE business_id = ? AND (day_of_week = ? OR day_of_week = 'everyday')
+         ORDER BY (day_of_week = ?) DESC
+         LIMIT 1`,
+        [targetBusinessId, dayName, dayName]
+    );
+
+    const availability = availabilityRows[0];
+
+    // If no operating hours exist for that day, or marked closed, return indicator
+    if (!availability || !availability.is_open || !availability.start_time || !availability.end_time) {
+        return {
+            vendorId: Number(vendorId) || vendorId,
+            businessName: business?.business_name || null,
+            date: dateStr,
+            dayOfWeek: dayName,
+            isClosed: true,
+            operatingHours: null,
+            existingAppointments: [],
+            freeTimes: [],
+            availableSlots: [],
+        };
+    }
+
+    // Query appointments for that vendorId and booking_date = dateStr where status != 'cancelled'
+    const [appointments] = await pool.query(
+        `SELECT app_id, start_time, end_time, status
+         FROM appointments
+         WHERE business_id = ? AND booking_date = ? AND status != 'cancelled'
+         ORDER BY start_time ASC`,
+        [targetBusinessId, dateStr]
+    );
+
+    // Call calculateFreeTimes from slotCalculator.js
+    const freeTimes = calculateFreeTimes({
+        openTime: availability.start_time,
+        closeTime: availability.end_time,
+        existingBookings: appointments.map((a) => ({
+            start_time: a.start_time,
+            end_time: a.end_time,
+        })),
+    });
+
+    // Return result object
+    return {
+        vendorId: Number(vendorId) || vendorId,
+        businessName: business?.business_name || null,
+        date: dateStr,
+        dayOfWeek: dayName,
+        isClosed: false,
+        operatingHours: {
+            openTime: availability.start_time,
+            closeTime: availability.end_time,
+        },
+        // existingAppointments: appointments.map((a) => ({
+        //     startTime: a.start_time,
+        //     endTime: a.end_time,
+        // })),
+        availableSlots: freeTimes.map((ft) => ({
+            startTime: ft.startTime,
+            endTime: ft.endTime,
+        })),
+    };
+};
