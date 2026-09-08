@@ -4,7 +4,10 @@ import {
     comparePassword,
     generateAccessToken,
     generateRefreshToken,
+    verifyAccessToken,
     verifyRefreshToken,
+    clearRefreshToken,
+    clearUserRefreshTokens,
 } from '../utils/authUtils.js';
 
 // User registration
@@ -282,5 +285,65 @@ export const getMe = async (req, res) => {
     } catch (error) {
         console.error('getMe error:', error);
         return res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+// Logout user and clear tokens
+export const logout = async (req, res) => {
+    try {
+        const { refreshToken } = req.body || {};
+        let userId = req.user?.id;
+
+        // If no user attached via middleware, attempt to extract and decode from Authorization header
+        if (!userId) {
+            const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+            if (authHeader) {
+                try {
+                    let token = authHeader.trim();
+                    if (token.startsWith('Bearer ')) token = token.slice(7).trim();
+                    if (token.startsWith('Bearer ')) token = token.slice(7).trim();
+                    if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+                        token = token.slice(1, -1).trim();
+                    }
+                    const decoded = verifyAccessToken(token);
+                    userId = decoded?.id;
+                } catch {
+                    // Ignore expired access token during logout
+                }
+            }
+        }
+
+        // If specific refreshToken provided in body, clear it from database
+        if (refreshToken && typeof refreshToken === 'string') {
+            await clearRefreshToken(refreshToken);
+            // If userId still unknown, attempt to decode userId from refresh token
+            if (!userId) {
+                try {
+                    const decodedRefresh = verifyRefreshToken(refreshToken.trim());
+                    userId = decodedRefresh?.id;
+                } catch {
+                    // Ignore invalid or expired refresh token
+                }
+            }
+        }
+
+        // If userId is known, clear all refresh tokens for this user
+        if (userId) {
+            await clearUserRefreshTokens(userId);
+        }
+
+        // Clear HTTP cookies if any were set
+        res.clearCookie('accessToken');
+        res.clearCookie('refreshToken');
+        res.clearCookie('token');
+
+        return res.status(200).json({
+            message: 'Logged out successfully. Access token and refresh token cleared.',
+            accessToken: null,
+            refreshToken: null,
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        return res.status(500).json({ error: 'Internal server error during logout.' });
     }
 };
