@@ -12,7 +12,8 @@ app.use(express.urlencoded({ extended: true }));
 // Auth routes
 app.use('/api/auth', authRoutes);
 
-// Service routes
+// Business & Service routes
+app.use('/api/business', businessRoutes);
 app.use('/api/services', businessRoutes);
 
 // Base health check
