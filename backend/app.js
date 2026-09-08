@@ -4,6 +4,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import availabilityRoutes from './src/routes/availabilityRoutes.js';
 import servicesRoutes from './src/routes/servicesRoutes.js';
 import appointmentRoutes from './src/routes/appointmentRoutes.js';
+import businessRoutes from './src/routes/businessRoutes.js';
 
 const app = express();
 
@@ -14,7 +15,8 @@ app.use(express.urlencoded({ extended: true }));
 // Auth routes
 app.use('/api/auth', authRoutes);
 
-// Business routes
+// Business & Public routes
+app.use('/api/businesses', businessRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/appointments', appointmentRoutes);
