@@ -19,7 +19,7 @@ router.get('/all', getServices);
 // GET /api/services/view/:id - Fetch a single service by ID
 router.get('/:id', getServiceById);
 
-// PUT /api/services/:id - Update a service
+// PUT /api/services/update/:id - Update a service
 router.put('/update/:id', authenticateToken, requireRole('vendor'), updateService);
 
 // PATCH /api/services/:id - Soft-delete or remove a service

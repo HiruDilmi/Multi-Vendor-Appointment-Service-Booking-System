@@ -104,7 +104,7 @@ const validateScheduleItem = (item, index = null) => {
 export const setAvailability = async (req, res) => {
     try {
         const userId = req.user?.id;
-        const business = await servicesService.findBusinessByUserId(userId);
+        const business = await availabilityService.findBusinessByUserId(userId);
         if (!business) {
             return res.status(400).json({
                 error: 'Business profile not found. Please register your business profile before configuring availability.',

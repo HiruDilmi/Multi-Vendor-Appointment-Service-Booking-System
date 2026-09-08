@@ -1,4 +1,24 @@
 import pool from '../config/db.js';
+ 
+// Find business profile by user ID
+export const findBusinessByUserId = async (userId) => {
+    const [rows] = await pool.query(
+        `SELECT
+            business_id, 
+            user_id, 
+            business_name, 
+            bio, 
+            address, 
+            city, 
+            phone, 
+            created_at, 
+            updated_at 
+        FROM businesses 
+        WHERE user_id = ? LIMIT 1`,
+        [userId]
+    );
+    return rows.length > 0 ? rows[0] : null;
+};
 
 // Get availability schedule for a business
 export const getBusinessAvailability = async (businessId = null) => {
@@ -146,20 +166,20 @@ export const updateAvailabilityById = async (availabilityId, updates) => {
     return getAvailabilityById(availabilityId);
 };
 
-// Delete an availability record by ID
-export const deleteAvailabilityById = async (availabilityId) => {
-    const [result] = await pool.query(
-        'DELETE FROM business_availability WHERE availability_id = ?',
-        [availabilityId]
-    );
-    return result.affectedRows > 0;
-};
+// // Delete an availability record by ID
+// export const deleteAvailabilityById = async (availabilityId) => {
+//     const [result] = await pool.query(
+//         'DELETE FROM business_availability WHERE availability_id = ?',
+//         [availabilityId]
+//     );
+//     return result.affectedRows > 0;
+// };
 
-// Delete all availability records for a business
-export const clearBusinessAvailability = async (businessId) => {
-    const [result] = await pool.query(
-        'DELETE FROM business_availability WHERE business_id = ?',
-        [businessId]
-    );
-    return result.affectedRows;
-};
+// // Delete all availability records for a business
+// export const clearBusinessAvailability = async (businessId) => {
+//     const [result] = await pool.query(
+//         'DELETE FROM business_availability WHERE business_id = ?',
+//         [businessId]
+//     );
+//     return result.affectedRows;
+// };
