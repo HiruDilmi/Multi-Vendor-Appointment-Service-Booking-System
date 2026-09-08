@@ -42,9 +42,12 @@ CREATE TABLE IF NOT EXISTS services (
 CREATE TABLE IF NOT EXISTS business_availability (
   availability_id INT AUTO_INCREMENT PRIMARY KEY,
   business_id INT NOT NULL,
-  day_of_week TINYINT NOT NULL, -- 0 = Sunday, 6 = Saturday
+  day_of_week ENUM('sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat','everyday') DEFAULT 'everyday',
+  is_open BOOLEAN DEFAULT TRUE,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (business_id) REFERENCES businesses(business_id) ON DELETE CASCADE
 );
 
